@@ -231,7 +231,7 @@ if ( function_exists( 'cra_fs' ) ) {
                     <span class="cranseo-status pro">★</span>
                     <span class="cranseo-rule-text">
                         <?php 
-                _e( 'Advanced SEO recommendations', 'cranseo' );
+                _e( 'Generate SEO optimized descriptions with AI', 'cranseo' );
                 ?>
                         <?php 
                 echo sprintf( '<a href="%s" target="_blank"><small>%s</small></a>', cra_fs()->get_upgrade_url(), __( '(Pro Feature)', 'cranseo' ) );
