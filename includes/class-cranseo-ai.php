@@ -1,67 +1,142 @@
 <?php
 class CranSEO_AI {
     private $api_key;
-    private $model;
-    private $has_valid_license;
+    private $api_url = 'https://cranseo.com/wp-json/cranseo/v1/generate';
+    private $quota_check_url = 'https://cranseo.com/wp-json/cranseo/v1/quota-check';
+    private $license_key;
 
     public function __construct() {
-        // Use your API key from wp-config.php
-        $this->api_key = defined('CRANSEO_OPENAI_KEY') ? CRANSEO_OPENAI_KEY : '';
-        
-        // Get the selected model
-        $this->model = get_option('cranseo_openai_model', 'gpt-3.5-turbo');
-        
-        // Check if user has a valid subscription
-        $this->has_valid_license = cra_fs()->can_use_premium_code();
+        $this->api_key = get_option('cranseo_openai_key');
+        $this->license_key = get_option('cranseo_saas_license_key');
+    }
+
+    /**
+     * Get remaining quota by checking with API server
+     */
+    public function get_remaining_quota() {
+        $quota_info = $this->check_quota();
+        return $quota_info['remaining'] ?? 0;
+    }
+
+    /**
+     * Check quota with API server
+     */
+    private function check_quota() {
+        if (empty($this->license_key)) {
+            return array(
+                'within_quota' => false,
+                'remaining' => 0,
+                'limit' => 10,
+                'message' => 'No license key found'
+            );
+        }
+
+        $response = wp_remote_post($this->quota_check_url, array(
+            'headers' => array('Content-Type' => 'application/json'),
+            'body' => json_encode(array(
+                'license_key' => $this->license_key,
+                'site_url' => home_url()
+            )),
+            'timeout' => 15
+        ));
+
+        if (is_wp_error($response)) {
+            error_log('Quota check failed: ' . $response->get_error_message());
+            return array(
+                'within_quota' => false,
+                'remaining' => 0,
+                'limit' => 10,
+                'message' => 'Quota check failed'
+            );
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($status_code === 200) {
+            return array(
+                'within_quota' => $body['within_quota'] ?? false,
+                'remaining' => $body['remaining'] ?? 0,
+                'limit' => $body['limit'] ?? 10,
+                'message' => $body['message'] ?? '',
+                'license_tier' => $body['license_tier'] ?? 'basic'
+            );
+        }
+
+        error_log('Quota check failed with status: ' . $status_code);
+        return array(
+            'within_quota' => false,
+            'remaining' => 0,
+            'limit' => 10,
+            'message' => 'Quota check failed'
+        );
+    }
+
+    /**
+     * Update quota usage - REMOVED because quota is now managed by API server
+     */
+    public function update_quota_usage() {
+        // Quota is now managed by the API server, so this method is no longer needed
+        // The API server updates quota when content is generated
+        return true;
+    }
+
+    /**
+     * Reset quota usage - REMOVED because quota is now managed by API server
+     */
+    public function reset_quota_usage() {
+        // Quota is now managed by the API server
+        return true;
     }
 
     public function generate_content($post_id, $content_type) {
-        // Check license first
-        if (!$this->has_valid_license) {
-            throw new Exception(__('Valid subscription required for AI features. Please upgrade your plan.', 'cranseo'));
-        }
-        
+        // Check if API key is configured
         if (empty($this->api_key)) {
-            throw new Exception(__('AI service not configured', 'cranseo'));
+            throw new Exception(__('OpenAI API key not configured', 'cranseo'));
+        }
+
+        // Check quota with API server
+        $quota_info = $this->check_quota();
+        if (!$quota_info['within_quota']) {
+            throw new Exception(__('You have exceeded your monthly quota. Please upgrade your plan to generate more content.', 'cranseo'));
         }
 
         $product = wc_get_product($post_id);
-
         if (!$product) {
             throw new Exception(__('Product not found', 'cranseo'));
         }
 
+        // Build the prompt based on content type
+        $prompt = $this->build_prompt($product, $content_type);
+        $max_tokens = $this->get_max_tokens($content_type);
+
+        // Send request to CranSEO API server
+        $response = $this->call_cranseo_api($prompt, $max_tokens, $content_type);
+
+        return $response;
+    }
+
+    private function build_prompt($product, $content_type) {
         switch ($content_type) {
             case 'title':
-                return $this->generate_title($product);
+                return $this->build_title_prompt($product);
             case 'short_description':
-                return $this->generate_short_description($product);
+                return $this->build_short_desc_prompt($product);
             case 'full_description':
-                return $this->generate_full_description($product);
+                return $this->build_full_desc_prompt($product);
             default:
                 throw new Exception(__('Invalid content type', 'cranseo'));
         }
     }
 
-    private function generate_title($product) {
-        $prompt = $this->build_title_prompt($product);
-        $result = $this->call_openai($prompt, 60);
-        $this->track_usage(60); // Estimate token usage
-        return $result;
-    }
-
-    private function generate_short_description($product) {
-        $prompt = $this->build_short_desc_prompt($product);
-        $result = $this->call_openai($prompt, 200);
-        $this->track_usage(200); // Estimate token usage
-        return $result;
-    }
-
-    private function generate_full_description($product) {
-        $prompt = $this->build_full_desc_prompt($product);
-        $result = $this->call_openai($prompt, 1200);
-        $this->track_usage(1200); // Estimate token usage
-        return $result;
+    private function get_max_tokens($content_type) {
+        $tokens = array(
+            'title' => 60,
+            'short_description' => 200,
+            'full_description' => 1200
+        );
+        
+        return isset($tokens[$content_type]) ? $tokens[$content_type] : 200;
     }
 
     private function build_title_prompt($product) {
@@ -165,6 +240,53 @@ class CranSEO_AI {
         );
     }
 
+    private function call_cranseo_api($prompt, $max_tokens, $content_type) {
+        $request_data = array(
+            'prompt' => $prompt,
+            'max_tokens' => $max_tokens,
+            'content_type' => $content_type,
+            'license_key' => $this->license_key,
+            'site_url' => home_url(),
+            'api_key' => $this->api_key
+        );
+
+        $response = wp_remote_post($this->api_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json',
+            ),
+            'body' => json_encode($request_data),
+            'timeout' => 60
+        ));
+
+        if (is_wp_error($response)) {
+            throw new Exception('Network error: ' . $response->get_error_message());
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($status_code !== 200) {
+            $error_message = 'API error (Code: ' . $status_code . ')';
+            if (isset($body['error'])) {
+                $error_message = $body['error'];
+            } elseif (isset($body['message'])) {
+                $error_message = $body['message'];
+            }
+            throw new Exception($error_message);
+        }
+
+        if (!isset($body['content'])) {
+            throw new Exception('Invalid response format from CranSEO API');
+        }
+
+        $content = trim($body['content']);
+        
+        // Validate and clean up HTML structure
+        $content = $this->validate_html_structure($content);
+        
+        return $content;
+    }
+
     private function get_product_attributes($product) {
         $attributes = array();
         
@@ -220,66 +342,6 @@ class CranSEO_AI {
         }
     }
 
-    private function call_openai($prompt, $max_tokens) {
-        $response = wp_remote_post('https://api.openai.com/v1/chat/completions', array(
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $this->api_key,
-                'Content-Type' => 'application/json',
-            ),
-            'body' => json_encode(array(
-                'model' => $this->model,
-                'messages' => array(
-                    array(
-                        'role' => 'system',
-                        'content' => 'You are an expert SEO content writer specializing in e-commerce product descriptions. ' .
-                                    'Always respond with properly formatted HTML including headings, paragraphs, and lists. ' .
-                                    'Follow the exact structure specified in the prompt. ' .
-                                    'Use H2 headings exactly as requested and include minimum 5 list items per section.'
-                    ),
-                    array(
-                        'role' => 'user',
-                        'content' => $prompt
-                    )
-                ),
-                'max_tokens' => $max_tokens,
-                'temperature' => 0.8
-            )),
-            'timeout' => 45
-        ));
-
-        if (is_wp_error($response)) {
-            throw new Exception('Network error: ' . $response->get_error_message());
-        }
-
-        $status_code = wp_remote_retrieve_response_code($response);
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-
-        if ($status_code !== 200) {
-            $error_message = 'API error (Code: ' . $status_code . ')';
-            if (isset($body['error']['message'])) {
-                $error_message = $body['error']['message'];
-            } elseif (isset($body['error']['code'])) {
-                $error_message = $body['error']['code'] . ': ' . ($body['error']['message'] ?? 'Unknown error');
-            }
-            throw new Exception($error_message);
-        }
-
-        if (isset($body['error'])) {
-            throw new Exception($body['error']['message']);
-        }
-
-        if (!isset($body['choices'][0]['message']['content'])) {
-            throw new Exception('Invalid response format from OpenAI');
-        }
-
-        $content = trim($body['choices'][0]['message']['content']);
-        
-        // Ensure proper HTML structure
-        $content = $this->validate_html_structure($content);
-        
-        return $content;
-    }
-
     private function validate_html_structure($content) {
         // Ensure H2 headings are properly formatted
         $content = preg_replace('/<h2[^>]*>(.*?)<\/h2>/i', '<h2>$1</h2>', $content);
@@ -310,20 +372,5 @@ class CranSEO_AI {
         }
         
         return $content;
-    }
-
-    // Track usage for billing/analytics
-    private function track_usage($tokens_used) {
-        if (!function_exists('cra_fs')) {
-            return;
-        }
-        
-        $customer_id = cra_fs()->get_user()->id;
-        $usage = get_option('cranseo_ai_usage_' . $customer_id, 0);
-        $usage += $tokens_used;
-        update_option('cranseo_ai_usage_' . $customer_id, $usage);
-        
-        // Optional: Send to your analytics service
-        // $this->send_usage_to_analytics($customer_id, $tokens_used);
     }
 }
