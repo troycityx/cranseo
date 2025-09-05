@@ -1,16 +1,13 @@
 <?php
 /**
- * Plugin Name: CranSEO
- * Description: SEO optimization toolkit for WooCommerce products with AI content generation and XML sitemap features.
- * Version: 1.0.8
- * Plugin URI: https://cranseo.com
- * Author: Kijana Omollo
- * Author URI: https://profiles.wordpress.org/chiqi/ 
- * License: GPL-2.0+
- * Text Domain: cranseo
- * Domain Path: /languages
- * Requires PHP: 7.4
- * Requires at least: 5.6
+* Plugin Name: CranSEO
+* Description: Optimize WooCommerce products for Search Engines and LLM, automatic AI content generation and XML sitemap features.
+* Requires Plugin: WooCommerce 
+* Version: 1.0.7
+* Plugin URI: https://cranseo.com
+* Author: Kijana Omollo
+* Author URI: https://profiles.wordpress.org/chiqi/ 
+* License: GPL-2.0+
  */
 
 // Prevent direct access
