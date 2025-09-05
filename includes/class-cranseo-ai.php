@@ -132,7 +132,7 @@ class CranSEO_AI {
     private function get_max_tokens($content_type) {
         $tokens = array(
             'title' => 60,
-            'short_description' => 200,
+            'short_description' => 700,
             'full_description' => 1200
         );
         
