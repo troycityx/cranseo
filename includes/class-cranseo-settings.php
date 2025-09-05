@@ -147,7 +147,9 @@ class CranSEO_Settings {
         $used = $limit - $remaining;
         
         echo '<div class="cranseo-section-description">';
-        echo '<p>' . __('Connect your WordPress site to your CranSEO.com account to enable AI content generation. Find your license key in your <a href="https://cranseo.com/account/" target="_blank">account dashboard</a>.', 'cranseo') . '</p>';
+        echo '<p>' . __('Input the license key you received via email and activate it to generate Woocommerce product descriptions with AI.
+         Click here to learn how to use CranSEO <a href="https://cranseo.com/documentation/" target="_blank">Documentation</a>.', 'cranseo') . '</p>';
+    
         
         // Display quota information
         echo '<div class="cranseo-quota-info">';
