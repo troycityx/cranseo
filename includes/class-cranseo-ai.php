@@ -6,7 +6,6 @@ class CranSEO_AI {
     private $license_key;
 
     public function __construct() {
-        $this->api_key = get_option('cranseo_openai_api_key');
         $this->license_key = get_option('cranseo_saas_license_key');
     }
 
@@ -72,12 +71,7 @@ class CranSEO_AI {
         );
     }
 
-    /**
-     * Update quota usage - REMOVED because quota is now managed by API server
-     */
     public function update_quota_usage() {
-        // Quota is now managed by the API server, so this method is no longer needed
-        // The API server updates quota when content is generated
         return true;
     }
 
@@ -85,16 +79,10 @@ class CranSEO_AI {
      * Reset quota usage - REMOVED because quota is now managed by API server
      */
     public function reset_quota_usage() {
-        // Quota is now managed by the API server
         return true;
     }
 
     public function generate_content($post_id, $content_type) {
-        // Check if API key is configured
-        if (empty($this->api_key)) {
-            throw new Exception(__('OpenAI API key not configured', 'cranseo'));
-        }
-
         // Check quota with API server
         $quota_info = $this->check_quota();
         if (!$quota_info['within_quota']) {
@@ -247,7 +235,6 @@ class CranSEO_AI {
             'content_type' => $content_type,
             'license_key' => $this->license_key,
             'site_url' => home_url(),
-            'api_key' => $this->api_key
         );
 
         $response = wp_remote_post($this->api_url, array(
