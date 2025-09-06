@@ -6,7 +6,7 @@ class CranSEO_AI {
     private $license_key;
 
     public function __construct() {
-        $this->api_key = get_option('cranseo_openai_key');
+        $this->api_key = get_option('cranseo_openai_api_key');
         $this->license_key = get_option('cranseo_saas_license_key');
     }
 
