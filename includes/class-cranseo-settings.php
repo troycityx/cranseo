@@ -148,7 +148,7 @@ class CranSEO_Settings {
         
         echo '<div class="cranseo-section-description">';
         echo '<p>' . __('Input the license key you received via email and activate it to generate Woocommerce product descriptions with AI.
-         Click here to learn how to use CranSEO <a href="https://cranseo.com/documentation/" target="_blank">Documentation</a>.', 'cranseo') . '</p>';
+         Click here to learn how to use CranSEO <a href="https://cranseo.com/docs/how-to-activate-your-cranseo-license/" target="_blank">Documentation</a>.', 'cranseo') . '</p>';
     
         
         // Display quota information
