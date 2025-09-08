@@ -4,7 +4,7 @@ Contributors: chiqi, freemius
 Tags: seo, aiseo, ai search engine optimization, llm optimization, content optimization
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html 
 
@@ -170,6 +170,9 @@ CranSEO connects to an external service provided by CranSEO (https://freemius.co
 - **Privacy Policy**: https://cranseo.com/privacy-policy/
 
 ==  Changelog ==
+==1.0.8=
+* Users can now generate product descriptions automatically using AI.
+* The tool integrates seamlessly with an API to interact with OpenAI
 ==1.0.7==
 * Scaled down CranSEO to focus on WooCommerce products optimization for search engines and AI
 * Integrated Freemius for activating premium 
