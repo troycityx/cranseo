@@ -4,7 +4,7 @@ Contributors: chiqi, freemius
 Tags: seo, aiseo, ai search engine optimization, llm optimization, content optimization
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 2.0.1
+Stable tag: 2.0.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html 
 
@@ -167,6 +167,9 @@ CranSEO connects to an external service provided by CranSEO (https://freemius.co
 - **Privacy Policy**: https://cranseo.com/privacy-policy/
 
 ==  Changelog ==
+==2.0.1==
+Updated the handling of user licenses.
+Introduced one-time payment as opposed to subscription model
 ==2.0.1=
 We have improved the documentation to specifically guide on how to interact with CranSEO for WooCommerce
 ==1.0.8=

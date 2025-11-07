@@ -1,6 +1,5 @@
 <?php
 class CranSEO_AI {
-    private $api_key;
     private $api_url = 'https://cranseo.com/wp-json/cranseo/v1/generate';
     private $quota_check_url = 'https://cranseo.com/wp-json/cranseo/v1/quota-check';
     private $license_key;
@@ -18,16 +17,26 @@ class CranSEO_AI {
     }
 
     /**
+     * Get complete quota information including plan details
+     */
+    public function get_quota_info() {
+        return $this->check_quota();
+    }
+
+    /**
+     * Check if user has an active license
+     */
+    public function has_license() {
+        return !empty($this->license_key);
+    }
+
+    /**
      * Check quota with API server
      */
     private function check_quota() {
+        // If no license key, user needs to get the free basic plan
         if (empty($this->license_key)) {
-            return array(
-                'within_quota' => false,
-                'remaining' => 0,
-                'limit' => 10,
-                'message' => 'No license key found'
-            );
+            return $this->get_no_license_quota();
         }
 
         $response = wp_remote_post($this->quota_check_url, array(
@@ -40,13 +49,8 @@ class CranSEO_AI {
         ));
 
         if (is_wp_error($response)) {
-            error_log('Quota check failed: ' . $response->get_error_message());
-            return array(
-                'within_quota' => false,
-                'remaining' => 0,
-                'limit' => 10,
-                'message' => 'Quota check failed'
-            );
+            error_log('CranSEO Quota check failed: ' . $response->get_error_message());
+            return $this->get_basic_plan_quota('Quota check failed, using basic plan');
         }
 
         $status_code = wp_remote_retrieve_response_code($response);
@@ -56,54 +60,151 @@ class CranSEO_AI {
             return array(
                 'within_quota' => $body['within_quota'] ?? false,
                 'remaining' => $body['remaining'] ?? 0,
-                'limit' => $body['limit'] ?? 10,
+                'limit' => $body['limit'] ?? 3,
                 'message' => $body['message'] ?? '',
-                'license_tier' => $body['license_tier'] ?? 'basic'
+                'license_tier' => $body['license_tier'] ?? 'basic',
+                'has_credits' => ($body['remaining'] ?? 0) > 0,
+                'has_license' => true
             );
         }
 
-        error_log('Quota check failed with status: ' . $status_code);
+        error_log('CranSEO Quota check failed with status: ' . $status_code);
+        return $this->get_basic_plan_quota('Quota check failed, using basic plan');
+    }
+
+    /**
+     * Get quota info when user has no license
+     */
+    private function get_no_license_quota() {
         return array(
             'within_quota' => false,
             'remaining' => 0,
-            'limit' => 10,
-            'message' => 'Quota check failed'
+            'limit' => 3,
+            'message' => 'Get free Basic plan to start generating content',
+            'license_tier' => 'none',
+            'has_credits' => false,
+            'has_license' => false
         );
     }
 
+    /**
+     * Get basic plan quota information
+     */
+    private function get_basic_plan_quota($message = 'Basic plan (3 credits)') {
+        return array(
+            'within_quota' => true,
+            'remaining' => 3,
+            'limit' => 3,
+            'message' => $message,
+            'license_tier' => 'basic',
+            'has_credits' => true,
+            'has_license' => true
+        );
+    }
+
+    /**
+     * Update quota usage - handled by API server during content generation
+     */
     public function update_quota_usage() {
         return true;
     }
 
     /**
-     * Reset quota usage - REMOVED because quota is now managed by API server
+     * Check if user can generate content based on credits
      */
-    public function reset_quota_usage() {
-        return true;
+    public function can_generate_content() {
+        $quota_info = $this->check_quota();
+        return $quota_info['has_credits'] && $quota_info['within_quota'];
     }
 
-    public function generate_content($post_id, $content_type) {
-        // Check quota with API server
+    /**
+     * Get appropriate message when user can't generate content
+     */
+    public function get_error_message() {
         $quota_info = $this->check_quota();
-        if (!$quota_info['within_quota']) {
-            throw new Exception(__('You have exceeded your monthly quota. Please upgrade your plan to generate more content.', 'cranseo'));
+        
+        // If no license key, guide them to get the free basic plan
+        if (!$quota_info['has_license']) {
+            return sprintf(
+                __('To generate AI content, please <a href="%s" target="_blank">get your free Basic plan</a>. Includes 3 credits to get started!', 'cranseo'),
+                $this->get_pricing_url()
+            );
+        }
+        
+        // If they have a license but no credits, guide to upgrade
+        if ($quota_info['remaining'] <= 0) {
+            return sprintf(
+                __('You have used all your %d credits. <a href="%s" target="_blank">Upgrade your plan</a> to generate more AI content.', 'cranseo'),
+                $quota_info['limit'],
+                $this->get_upgrade_url()
+            );
+        }
+        
+        // If they're running low on basic plan credits
+        if ($quota_info['remaining'] <= 1 && $quota_info['license_tier'] === 'basic') {
+            return sprintf(
+                __('You have only %d credit remaining. <a href="%s" target="_blank">Upgrade to Pro</a> for 150 credits.', 'cranseo'),
+                $quota_info['remaining'],
+                $this->get_upgrade_url()
+            );
+        }
+        
+        return '';
+    }
+
+    /**
+     * Generate AI content for a product
+     */
+    public function generate_content($post_id, $content_type) {
+        // Validate input parameters
+        if (empty($post_id) || empty($content_type)) {
+            throw new Exception(__('Missing required parameters: post_id and content_type are required', 'cranseo'));
         }
 
+        // Check quota
+        $quota_info = $this->check_quota();
+        
+        if (!$quota_info['has_credits']) {
+            throw new Exception($this->get_error_message());
+        }
+
+        if (!$quota_info['within_quota']) {
+            throw new Exception($this->get_error_message());
+        }
+
+        // Get product and validate
         $product = wc_get_product($post_id);
         if (!$product) {
             throw new Exception(__('Product not found', 'cranseo'));
         }
 
-        // Build the prompt based on content type
+        // Build prompt and generate content
         $prompt = $this->build_prompt($product, $content_type);
         $max_tokens = $this->get_max_tokens($content_type);
 
-        // Send request to CranSEO API server
-        $response = $this->call_cranseo_api($prompt, $max_tokens, $content_type);
-
-        return $response;
+        return $this->call_cranseo_api($prompt, $max_tokens, $content_type);
     }
 
+    /**
+     * Get pricing URL for new users
+     */
+    private function get_pricing_url() {
+        return 'https://cranseo.com/pricing/';
+    }
+
+    /**
+     * Get upgrade URL for existing users
+     */
+    private function get_upgrade_url() {
+        if (function_exists('cranseo_freemius')) {
+            return cranseo_freemius()->get_upgrade_url();
+        }
+        return $this->get_pricing_url();
+    }
+
+    /**
+     * Build prompt based on content type
+     */
     private function build_prompt($product, $content_type) {
         switch ($content_type) {
             case 'title':
@@ -117,6 +218,9 @@ class CranSEO_AI {
         }
     }
 
+    /**
+     * Get max tokens for content type
+     */
     private function get_max_tokens($content_type) {
         $tokens = array(
             'title' => 60,
@@ -124,9 +228,12 @@ class CranSEO_AI {
             'full_description' => 1200
         );
         
-        return isset($tokens[$content_type]) ? $tokens[$content_type] : 200;
+        return $tokens[$content_type] ?? 200;
     }
 
+    /**
+     * Build title prompt
+     */
     private function build_title_prompt($product) {
         $attributes = $this->get_product_attributes($product);
         
@@ -149,6 +256,9 @@ class CranSEO_AI {
         );
     }
 
+    /**
+     * Build short description prompt
+     */
     private function build_short_desc_prompt($product) {
         $attributes = $this->get_product_attributes($product);
         
@@ -173,6 +283,9 @@ class CranSEO_AI {
         );
     }
 
+    /**
+     * Build full description prompt
+     */
     private function build_full_desc_prompt($product) {
         $attributes = $this->get_product_attributes($product);
         $category = $this->get_product_category($product);
@@ -228,14 +341,25 @@ class CranSEO_AI {
         );
     }
 
+    /**
+     * Call CranSEO API to generate content
+     */
     private function call_cranseo_api($prompt, $max_tokens, $content_type) {
+        // Prepare request data - handle basic plan (no license key)
         $request_data = array(
             'prompt' => $prompt,
             'max_tokens' => $max_tokens,
             'content_type' => $content_type,
-            'license_key' => $this->license_key,
             'site_url' => home_url(),
         );
+
+        // Only add license_key if it exists (for paid plans)
+        if (!empty($this->license_key)) {
+            $request_data['license_key'] = $this->license_key;
+        } else {
+            // For basic plan, use a placeholder to satisfy API requirements
+            $request_data['license_key'] = 'basic_plan';
+        }
 
         $response = wp_remote_post($this->api_url, array(
             'headers' => array(
@@ -253,12 +377,7 @@ class CranSEO_AI {
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
         if ($status_code !== 200) {
-            $error_message = 'API error (Code: ' . $status_code . ')';
-            if (isset($body['error'])) {
-                $error_message = $body['error'];
-            } elseif (isset($body['message'])) {
-                $error_message = $body['message'];
-            }
+            $error_message = $this->get_api_error_message($status_code, $body);
             throw new Exception($error_message);
         }
 
@@ -267,13 +386,27 @@ class CranSEO_AI {
         }
 
         $content = trim($body['content']);
-        
-        // Validate and clean up HTML structure
-        $content = $this->validate_html_structure($content);
-        
-        return $content;
+        return $this->validate_html_structure($content);
     }
 
+    /**
+     * Get API error message
+     */
+    private function get_api_error_message($status_code, $body) {
+        $error_message = 'API error (Code: ' . $status_code . ')';
+        
+        if (isset($body['error'])) {
+            $error_message = $body['error'];
+        } elseif (isset($body['message'])) {
+            $error_message = $body['message'];
+        }
+        
+        return $error_message;
+    }
+
+    /**
+     * Get product attributes
+     */
     private function get_product_attributes($product) {
         $attributes = array();
         
@@ -300,25 +433,27 @@ class CranSEO_AI {
             }
         }
         
-        // Get product tags
+        // Get product tags and categories
         $tags = wp_get_post_terms($product->get_id(), 'product_tag', array('fields' => 'names'));
-        $attributes = array_merge($attributes, $tags);
-        
-        // Get product categories
         $categories = wp_get_post_terms($product->get_id(), 'product_cat', array('fields' => 'names'));
-        $attributes = array_merge($attributes, $categories);
         
+        $attributes = array_merge($attributes, $tags, $categories);
         return array_unique(array_filter($attributes));
     }
 
+    /**
+     * Get product category
+     */
     private function get_product_category($product) {
         $categories = wp_get_post_terms($product->get_id(), 'product_cat', array('fields' => 'names'));
         return !empty($categories) ? $categories[0] : 'General';
     }
 
+    /**
+     * Get target audience based on price
+     */
     private function get_target_audience($product) {
         $price = $product->get_price();
-        $categories = wp_get_post_terms($product->get_id(), 'product_cat', array('fields' => 'names'));
         
         if ($price > 100) {
             return 'Premium customers looking for quality';
@@ -329,6 +464,9 @@ class CranSEO_AI {
         }
     }
 
+    /**
+     * Validate and clean up HTML structure
+     */
     private function validate_html_structure($content) {
         // Ensure H2 headings are properly formatted
         $content = preg_replace('/<h2[^>]*>(.*?)<\/h2>/i', '<h2>$1</h2>', $content);
@@ -339,25 +477,32 @@ class CranSEO_AI {
         
         // Add missing HTML tags if necessary
         if (strpos($content, '<h2>') === false) {
-            $sections = array(
-                'Product Overview',
-                'Product Features',
-                'Product Details', 
-                'Frequently Asked Questions'
-            );
-            
-            $structured_content = '';
-            foreach ($sections as $section) {
-                $structured_content .= "<h2>{$section}</h2>\n";
-                if ($section === 'Product Overview') {
-                    $structured_content .= "<p>[Product overview content]</p>\n";
-                } else {
-                    $structured_content .= "<ul>\n<li>[List item 1]</li>\n<li>[List item 2]</li>\n<li>[List item 3]</li>\n<li>[List item 4]</li>\n<li>[List item 5]</li>\n</ul>\n";
-                }
-            }
-            $content = $structured_content;
+            $content = $this->create_structured_fallback_content();
         }
         
         return $content;
+    }
+
+    /**
+     * Create structured fallback content when HTML is missing
+     */
+    private function create_structured_fallback_content() {
+        $sections = array(
+            'Product Overview',
+            'Product Features',
+            'Product Details', 
+            'Frequently Asked Questions'
+        );
+        
+        $structured_content = '';
+        foreach ($sections as $section) {
+            $structured_content .= "<h2>{$section}</h2>\n";
+            if ($section === 'Product Overview') {
+                $structured_content .= "<p>[Product overview content]</p>\n";
+            } else {
+                $structured_content .= "<ul>\n<li>[List item 1]</li>\n<li>[List item 2]</li>\n<li>[List item 3]</li>\n<li>[List item 4]</li>\n<li>[List item 5]</li>\n</ul>\n";
+            }
+        }
+        return $structured_content;
     }
 }

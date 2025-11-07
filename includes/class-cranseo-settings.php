@@ -98,6 +98,23 @@ class CranSEO_Settings {
                 background: #fff3e0;
                 color: #f57c00;
             }
+            
+            .cranseo-plan-badge.plan-none {
+                background: #f5f5f5;
+                color: #666;
+            }
+            
+            .cranseo-notice {
+                padding: 15px;
+                border-left: 4px solid;
+                margin: 15px 0;
+                border-radius: 4px;
+            }
+            
+            .cranseo-notice-info {
+                background: #e7f3ff;
+                border-color: #0073aa;
+            }
         ";
         wp_add_inline_style('cranseo-settings', $custom_css);
     }
@@ -145,28 +162,37 @@ class CranSEO_Settings {
         $remaining = $quota_info['remaining'];
         $limit = $quota_info['limit'];
         $used = $limit - $remaining;
+        $license_key = get_option('cranseo_saas_license_key');
         
         echo '<div class="cranseo-section-description">';
-        echo '<p>' . __('Input the license key you received via email and activate it to generate Woocommerce product descriptions with AI.
-         Click here to learn how to use CranSEO <a href="https://cranseo.com/docs/how-to-activate-your-cranseo-license/" target="_blank">Documentation</a>.', 'cranseo') . '</p>';
-    
         
-        // Display quota information
-        echo '<div class="cranseo-quota-info">';
-        echo '<div class="cranseo-quota-progress">';
-        echo '<div class="cranseo-quota-bar">';
-        $percentage = $limit > 0 ? min(100, ($used / $limit) * 100) : 0;
-        echo '<div class="cranseo-quota-progress-bar" style="width: ' . $percentage . '%"></div>';
-        echo '</div>';
-        echo '<div class="cranseo-quota-text">';
-        echo sprintf(__('%d of %d generations used this month (%s plan)', 'cranseo'), 
-            $used, 
-            $limit, 
-            ucfirst($tier)
-        );
-        echo '</div>';
-        echo '</div>';
-        echo '</div>';
+        if (empty($license_key)) {
+            // No license key - encourage getting free plan
+            echo '<div class="cranseo-notice cranseo-notice-info">';
+            echo '<p><strong>' . __('Get Started with CranSEO AI!', 'cranseo') . '</strong></p>';
+            echo '<p>' . __('To generate AI product descriptions, get your free Basic plan with 3 credits. Perfect for trying out the features!', 'cranseo') . '</p>';
+            echo '<p><a href="' . $this->get_pricing_url() . '" class="button button-primary" target="_blank">' . __('Get Free Basic Plan', 'cranseo') . '</a></p>';
+            echo '</div>';
+        } else {
+            echo '<p>' . __('Input the license key you received via email and activate it to generate Woocommerce product descriptions with AI. Click here to learn how to use CranSEO <a href="https://cranseo.com/docs/how-to-activate-your-cranseo-license/" target="_blank">Documentation</a>.', 'cranseo') . '</p>';
+        
+            // Display quota information for licensed users
+            echo '<div class="cranseo-quota-info">';
+            echo '<div class="cranseo-quota-progress">';
+            echo '<div class="cranseo-quota-bar">';
+            $percentage = $limit > 0 ? min(100, ($used / $limit) * 100) : 0;
+            echo '<div class="cranseo-quota-progress-bar" style="width: ' . $percentage . '%"></div>';
+            echo '</div>';
+            echo '<div class="cranseo-quota-text">';
+            echo sprintf(__('%d of %d credits used (%s plan)', 'cranseo'), 
+                $used, 
+                $limit, 
+                ucfirst($tier)
+            );
+            echo '</div>';
+            echo '</div>';
+            echo '</div>';
+        }
         echo '</div>';
     }
 
@@ -188,7 +214,6 @@ class CranSEO_Settings {
         
         if ($value) {
             echo '<div class="cranseo-test-area">';
-           // echo '<button type="button" class="button button-secondary" id="cranseo-validate-license">' . __('Validate Key', 'cranseo') . '</button>';
             echo '<button type="button" class="button button-primary" id="cranseo-activate-license">' . __('Activate Key', 'cranseo') . '</button>';
             echo '<span id="cranseo-validation-result"></span>';
             echo '</div>';
@@ -375,13 +400,14 @@ class CranSEO_Settings {
     private function get_quota_info() {
         $license_key = get_option('cranseo_saas_license_key');
         
-        // Return basic info if no license key
+        // Return no license info if no license key
         if (empty($license_key)) {
             return array(
                 'remaining' => 0,
-                'limit' => 10,
+                'limit' => 3,
                 'used' => 0,
-                'tier' => 'basic'
+                'tier' => 'none',
+                'has_license' => false
             );
         }
         
@@ -407,9 +433,10 @@ class CranSEO_Settings {
                 
                 $quota_info = array(
                     'remaining' => $body['remaining'] ?? 0,
-                    'limit' => $body['limit'] ?? 10,
-                    'used' => ($body['limit'] ?? 10) - ($body['remaining'] ?? 0),
-                    'tier' => $body['license_tier'] ?? 'basic'
+                    'limit' => $body['limit'] ?? 3,
+                    'used' => ($body['limit'] ?? 3) - ($body['remaining'] ?? 0),
+                    'tier' => $body['license_tier'] ?? 'basic',
+                    'has_license' => true
                 );
                 
                 // Cache for 2 minutes
@@ -422,43 +449,20 @@ class CranSEO_Settings {
         
         // Fallback to basic info
         return array(
-            'remaining' => 0,
-            'limit' => 10,
+            'remaining' => 3,
+            'limit' => 3,
             'used' => 0,
-            'tier' => 'basic'
+            'tier' => 'basic',
+            'has_license' => true
         );
     }
 
-    private function get_user_tier() {
-        $license_key = get_option('cranseo_saas_license_key');
-        if (empty($license_key)) {
-            return 'basic';
-        }
-        
-        // Check cache first
-        $cached_tier = get_transient('cranseo_license_tier');
-        if ($cached_tier !== false) {
-            return $cached_tier;
-        }
-        
-        // Fallback to validation
-        $validation = get_transient('cranseo_license_validation');
-        if ($validation && isset($validation['tier'])) {
-            return $validation['tier'];
-        }
-        
-        return 'basic';
+    private function get_pricing_url() {
+        return 'https://cranseo.com/pricing/';
     }
 
-    private function get_quota_limit() {
-        $tier = $this->get_user_tier();
-        $limits = array(
-            'basic' => 10,
-            'pro' => 500,
-            'agency' => 1000
-        );
-        
-        return $limits[$tier] ?? 10;
+    private function get_upgrade_url() {
+        return $this->get_pricing_url();
     }
 
     public function settings_page() {
@@ -468,6 +472,7 @@ class CranSEO_Settings {
         $remaining_quota = $quota_info['remaining'];
         $tier = $quota_info['tier'];
         $quota_limit = $quota_info['limit'];
+        $has_license = $quota_info['has_license'] ?? false;
         $license_key = get_option('cranseo_saas_license_key');
         ?>
         <div class="wrap cranseo-settings-wrap">
@@ -490,7 +495,7 @@ class CranSEO_Settings {
                     </div>
                     <div class="cranseo-stat-card">
                         <span class="cranseo-stat-number" id="cranseo-quota-remaining"><?php echo $remaining_quota; ?></span>
-                        <span class="cranseo-stat-label"><?php _e('AI Generations Left', 'cranseo'); ?></span>
+                        <span class="cranseo-stat-label"><?php _e('Credits Remaining', 'cranseo'); ?></span>
                     </div>
                 </div>
             </div>
@@ -539,39 +544,70 @@ class CranSEO_Settings {
                             Your Plan: 
                             <span class="cranseo-plan-badge plan-<?php echo $tier; ?>">
                                 <span class="cranseo-plan-icon">
-                                    <?php echo ($tier === 'agency') ? '🏆' : (($tier === 'pro') ? '⭐' : '🔹'); ?>
+                                    <?php echo ($tier === 'agency') ? '🏆' : (($tier === 'pro') ? '⭐' : (($tier === 'basic') ? '🔹' : '🔒')); ?>
                                 </span>
-                                <span class="cranseo-plan-name"><?php echo ucfirst($tier); ?></span>
+                                <span class="cranseo-plan-name">
+                                    <?php echo ($tier === 'none') ? __('No Plan', 'cranseo') : ucfirst($tier); ?>
+                                </span>
                             </span>
                         </h3>
                         <div class="cranseo-card-content">
                             <div class="cranseo-plan-details">
-                                <div class="cranseo-plan-feature">
-                                    <span class="cranseo-feature-icon">✅</span>
-                                    <span class="cranseo-feature-text">
-                                        <?php printf(__('%d AI generations per month', 'cranseo'), $quota_limit); ?>
-                                    </span>
-                                </div>
-                                <div class="cranseo-plan-feature">
-                                    <span class="cranseo-feature-icon">✅</span>
-                                    <span class="cranseo-feature-text">
-                                        <?php _e('SEO optimization tools', 'cranseo'); ?>
-                                    </span>
-                                </div>
-                                <div class='cranseo-plan-feature'>
-                                    <span class='cranseo-feature-icon'>✅</span>
-                                    <span class='cranseo-feature-text'>
-                                        <?php _e('XML sitemap generation', 'cranseo'); ?>
-                                    </span>
-                                </div>
-                                
-                                <?php if ($tier === 'basic' && empty($license_key)) : ?>
-                                <div class="cranseo-upgrade-cta">
-                                    <p><?php _e('Ready to get started?', 'cranseo'); ?></p>
-                                    <a href="<?php echo $this->get_upgrade_url(); ?>" class="button button-primary" target="_blank">
-                                        <?php _e('Get License Key', 'cranseo'); ?>
-                                    </a>
-                                </div>
+                                <?php if (!$has_license): ?>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">🔒</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php _e('AI content generation', 'cranseo'); ?>
+                                        </span>
+                                    </div>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">✅</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php _e('SEO optimization tools', 'cranseo'); ?>
+                                        </span>
+                                    </div>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">✅</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php _e('XML sitemap generation', 'cranseo'); ?>
+                                        </span>
+                                    </div>
+                                    
+                                    <div class="cranseo-upgrade-cta">
+                                        <p><strong><?php _e('Get Started with AI!', 'cranseo'); ?></strong></p>
+                                        <p><?php _e('Unlock AI content generation with our free Basic plan.', 'cranseo'); ?></p>
+                                        <a href="<?php echo $this->get_pricing_url(); ?>" class="button button-primary" target="_blank">
+                                            <?php _e('Get Free Basic Plan', 'cranseo'); ?>
+                                        </a>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">✅</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php printf(__('%d AI credits', 'cranseo'), $quota_limit); ?>
+                                        </span>
+                                    </div>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">✅</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php _e('SEO optimization tools', 'cranseo'); ?>
+                                        </span>
+                                    </div>
+                                    <div class="cranseo-plan-feature">
+                                        <span class="cranseo-feature-icon">✅</span>
+                                        <span class="cranseo-feature-text">
+                                            <?php _e('XML sitemap generation', 'cranseo'); ?>
+                                        </span>
+                                    </div>
+                                    
+                                    <?php if ($tier === 'basic' && $remaining_quota <= 1): ?>
+                                    <div class="cranseo-upgrade-cta">
+                                        <p><?php _e('Running low on credits?', 'cranseo'); ?></p>
+                                        <a href="<?php echo $this->get_upgrade_url(); ?>" class="button button-primary" target="_blank">
+                                            <?php _e('Upgrade to Pro', 'cranseo'); ?>
+                                        </a>
+                                    </div>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -606,10 +642,16 @@ class CranSEO_Settings {
                 }, function(response) {
                     if (response.success) {
                         $('#cranseo-quota-remaining').text(response.data.remaining);
-                        $('.cranseo-quota-text').text(
-                            response.data.used + ' of ' + response.data.limit + 
-                            ' generations used this month (' + response.data.tier + ' plan)'
-                        );
+                        if (response.data.tier === 'none') {
+                            $('.cranseo-quota-text').html(
+                                'Get free Basic plan to start generating AI content!'
+                            );
+                        } else {
+                            $('.cranseo-quota-text').text(
+                                response.data.used + ' of ' + response.data.limit + 
+                                ' credits used (' + response.data.tier + ' plan)'
+                            );
+                        }
                     }
                 });
             }
@@ -633,40 +675,6 @@ class CranSEO_Settings {
                     }
                 }).always(function() {
                     $button.prop('disabled', false).text('Regenerate');
-                });
-            });
-
-            // License validation AJAX handler
-            $('#cranseo-validate-license').click(function() {
-                var $button = $(this);
-                var $result = $('#cranseo-validation-result');
-                var licenseKey = $('input[name="cranseo_saas_license_key"]').val();
-                
-                $button.prop('disabled', true).text('Validating...');
-                $result.html('<span class="testing">Validating license key...</span>');
-                
-                $.post(ajaxurl, {
-                    action: 'cranseo_validate_license',
-                    nonce: cranseo_settings.nonces.validate_license,
-                    license_key: licenseKey
-                }, function(response) {
-                    if (response.success) {
-                        var message = '✅ ' + response.data.message;
-                        if (response.data.tier) {
-                            message += ' - ' + response.data.tier + ' plan';
-                        }
-                        if (response.data.remaining_quota) {
-                            message += ' - ' + response.data.remaining_quota + ' generations remaining';
-                        }
-                        $result.html('<span class="success">' + message + '</span>');
-                    } else {
-                        var errorMsg = response.data;
-                        $result.html('<span class="error">❌ ' + errorMsg + '</span>');
-                    }
-                }).fail(function(xhr, status, error) {
-                    $result.html('<span class="error">❌ Validation failed: ' + error + '</span>');
-                }).always(function() {
-                    $button.prop('disabled', false).text('Validate Key');
                 });
             });
 
@@ -706,10 +714,6 @@ class CranSEO_Settings {
         });
         </script>
         <?php
-    }
-
-    private function get_upgrade_url() {
-        return 'https://cranseo.com/pricing';
     }
 
     private function count_optimized_products() {
