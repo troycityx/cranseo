@@ -3,7 +3,7 @@
 * Plugin Name: CranSEO
 * Description: Optimize WooCommerce products for Search Engines and LLM, automatic AI content generation and XML sitemap features.
 * Requires Plugin: WooCommerce 
-* Version: 1.0.9
+* Version: 2.0.1
 * Plugin URI: https://cranseo.com
 * Author: Kijana Omollo
 * Author URI: https://profiles.wordpress.org/chiqi/ 
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Define plugin constants
-define('CRANSEO_VERSION', '1.0.9');
+define('CRANSEO_VERSION', '2.0.1');
 define('CRANSEO_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('CRANSEO_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CRANSEO_PLUGIN_BASENAME', plugin_basename(__FILE__));
