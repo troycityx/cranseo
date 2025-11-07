@@ -40,33 +40,30 @@ Simple integration into WooCommerce product editor
 CranSEO includes a dedicated optimization engine for WooCommerce products, helping store owners create product pages that are not only search-friendly but also highly visible to LLMs and AI-driven search engines.
 
 **How It Works: Step-by-Step**
-*Enter a Seed Keyword*
-The user begins by entering a focus keyword — the main term they want the product to rank for. This keyword will guide the optimization process.
-
 *Click “Analyze Product”*
 With one click, CranSEO scans the product’s title, description, and short product description for SEO and LLM optimization factors.
 
 *Get Real-Time Scoring & Suggestions*
 The plugin then displays:
-* A comprehensive SEO score for the product
-* Suggestions to improve keyword placement
-* Warnings for missing or weak elements
-* Tips to make the content more conversational and structured
+1. A comprehensive SEO score for the product
+2. Suggestions to improve keyword placement
+3. Warnings for missing or weak elements
+4. Tips to make the content more conversational and structured
 
 **Optimization Targets**
 *Short Product Description*
 Ensures this snippet is compelling and keyword-rich — ideal for appearing in quick previews or featured listings.
 
 *Long Description*
-Analyzes for content depth, structure, internal links, and relevance to LLM queries (e.g., FAQs, benefits, comparisons).
+Analyzes for content depth, structure, and relevance to LLM queries (e.g., FAQs, benefits, comparisons).
 
 **Built-in Product SEO Scoring**
 Each WooCommerce product is scored based on:
-* Keyword relevance and density
-* Conversational tone and clarity
-* Content structure (headings, bullets, etc.)
-* Link usage and metadata completeness
-* LLM compatibility (Is the content likely to be cited or used by AI?)
+1. Keyword relevance and density
+2. Conversational tone and clarity
+3. Content structure (headings, bullets, etc.)
+4. Link usage and metadata completeness
+5. LLM compatibility (Is the content likely to be cited or used by AI?)
 
 **Why it matters**
 Most WooCommerce SEO plugins focus on meta tags — CranSEO goes further by optimizing the actual product content for visibility in LLM-powered platforms like ChatGPT, Google’s AI Overviews, and voice search.
@@ -76,40 +73,40 @@ CranSEO automatically generates a complete and compliant XML sitemap to help sea
 
 **What It Includes**
 The sitemap dynamically includes:
-* Pages – All published static pages
-* Posts – Blog articles and other post types
-* WooCommerce Products – Product pages with SEO relevance
-* Categories & Tags – Blog and product categories/tags
-* Custom Taxonomies – Including WooCommerce product attributes or any CPT taxonomy
+1. Pages – All published static pages
+2. Posts – Blog articles and other post types
+3. WooCommerce Products – Product pages with SEO relevance
+4. Categories & Tags – Blog and product categories/tags
+5. Custom Taxonomies – Including WooCommerce product attributes or any CPT taxonomy
 
 **Search Engine Ready**
 Once generated, users can submit the sitemap directly to major search engines (like Google and Bing) via:
-* Google Search Console
-* Bing Webmaster Tools
-* Manual submission or plugin integrations
+1. Google Search Console
+2. Bing Webmaster Tools
+3. Manual submission or plugin integrations
 
 The sitemap is located at:
 yourdomain.com/sitemap.xml
 
 **Automatic Updates**
 CranSEO ensures your sitemap:
-Updates automatically when new content is published
-Removes deleted content from the index
-It has timestamps to show when you update the content
+1. Updates automatically when new content is published
+2. Removes deleted content from the index
+3. It has timestamps to show when you update the content
 
 **Why Sitempas Matter**
-* Search engines rely on sitemaps to:
-* Discover your content faster
-* Understand your site structure
-* Prioritize what to crawl and index
-* And in the AI era, structured sitemaps help LLMs and bots find and contextualize your content better — especially when paired with CranSEO’s content optimization.
+*Search engines rely on sitemaps to:*
+1. Discover your content faster
+2. Understand your site structure
+3. Prioritize what to crawl and index
+4. And in the AI era, structured sitemaps help LLMs and bots find and contextualize your content better — especially when paired with CranSEO’s content optimization.
 
 == Installation ==
 
-* In the WordPress Plugins Repository, search for cranseo
-* After you find it, Install
-* Then Activate the plugin 
-* It will appear on the menu bar as CranSEO and you can easily interact with it
+1. In the WordPress Plugins Repository, search for cranseo
+2. After you find it, Install
+3. Then Activate the plugin 
+4. It will appear on the menu bar as CranSEO and you can easily interact with it
 
 Alternatively, download the ZIP file from the GitHub repository.
 
@@ -134,26 +131,26 @@ After activation, a "CranSEO" menu appears in the WordPress admin sidebar with s
 **Premium Features**
 * Purchase a license from cranseo.com/pricing.
 
-* You will receive the license keyw alongside the shared key
+* You will receive the license key from freemius
 
-* Enter your license key and the shared key in the "Manage License" page to unlock premium features.
+* Enter your license key in the "Manage License" page to unlock premium features.
 
 == Frequently Asked Questions ==
 
 **What is CranSEO?**
 CranSEO is a WordPress plugin that optimizes content for Large Language Models (LLMs) with real-time analysis and suggestions, improving discoverability in AI-driven search.
 
-**Do I need an API key?**
-An API key is optional for free features but required for premium features. You can obtain one from cranseo.com.
+*Do I need a license key?*
+A license key is optional for free features but required for premium features. You can obtain one from cranseo.com.
 
-How do I upgrade to premium?
+*How do I upgrade to premium?*
 Visit cranseo.com/pricing to purchase a license. You will recieve a license key and a shared key. 
 Enter the license key and the shared key in the "Manage License" page in your WordPress admin.
 
-**Is CranSEO compatible with Gutenberg?**
+*Is CranSEO compatible with Gutenberg?*
 Yes, CranSEO supports both the Classic Editor and Gutenberg, providing seamless integration for content analysis.
 
-**Where can I get support?**
+*Where can I get support?*
 Access the Support page in the CranSEO admin menu or contact support@cranseo.com (mailto:support@cranseo.com).
 
 == External Services ==
@@ -170,6 +167,8 @@ CranSEO connects to an external service provided by CranSEO (https://freemius.co
 - **Privacy Policy**: https://cranseo.com/privacy-policy/
 
 ==  Changelog ==
+==2.0.1=
+We have improved the documentation to specifically guide on how to interact with CranSEO for WooCommerce
 ==1.0.8=
 * Users can now generate product descriptions automatically using AI.
 * The tool integrates seamlessly with an API to interact with OpenAI
