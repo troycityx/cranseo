@@ -79,6 +79,7 @@ class CranSEO {
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
         add_action('wp_ajax_cranseo_check_product', array($this, 'ajax_check_product_handler'));
         add_action('wp_ajax_cranseo_generate_content', array($this, 'ajax_generate_content_handler'));
+        add_action('wp_ajax_cranseo_dismiss_notice', array($this, 'ajax_dismiss_notice_handler'));
         add_action('admin_notices', array($this, 'display_quota_notices'));
     }
 
@@ -105,6 +106,7 @@ class CranSEO {
         wp_localize_script('cranseo-admin', 'cranseo_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('cranseo_nonce'),
+            'dismiss_nonce' => wp_create_nonce('cranseo_dismiss_notice'),
             'post_id' => $post->ID,
             'remaining_quota' => $remaining_quota,
             'user_tier' => $user_tier,
@@ -193,6 +195,28 @@ class CranSEO {
         }
     }
 
+    /**
+     * Handle notice dismissal
+     */
+    public function ajax_dismiss_notice_handler() {
+        check_ajax_referer('cranseo_dismiss_notice', 'nonce');
+        
+        if (!current_user_can('edit_products')) {
+            wp_send_json_error(__('Unauthorized', 'cranseo'));
+        }
+        
+        $notice_key = sanitize_text_field($_POST['notice_key']);
+        $user_id = get_current_user_id();
+        $dismissed_notices = get_user_meta($user_id, 'cranseo_dismissed_notices', true) ?: array();
+        
+        if (!in_array($notice_key, $dismissed_notices)) {
+            $dismissed_notices[] = $notice_key;
+            update_user_meta($user_id, 'cranseo_dismissed_notices', $dismissed_notices);
+        }
+        
+        wp_send_json_success();
+    }
+
     public function woocommerce_missing_notice() {
         ?>
         <div class="notice notice-error">
@@ -212,15 +236,33 @@ class CranSEO {
             return;
         }
 
+        // Check if user has dismissed the notice
+        $dismissed_notices = get_user_meta(get_current_user_id(), 'cranseo_dismissed_notices', true) ?: array();
+        $current_notice_key = '';
+
         $quota_info = $this->ai_writer->get_quota_info();
         $remaining_quota = $quota_info['remaining'];
         $user_tier = $quota_info['license_tier'] ?? 'basic';
         $has_license = $quota_info['has_license'] ?? false;
         
+        // Determine which notice to show and set the key
+        if (!$has_license) {
+            $current_notice_key = 'no_license';
+        } elseif ($remaining_quota <= 0) {
+            $current_notice_key = 'no_credits';
+        } elseif ($remaining_quota <= 1 && $user_tier === 'basic') {
+            $current_notice_key = 'low_credits';
+        }
+
+        // If notice is dismissed, don't show it
+        if ($current_notice_key && in_array($current_notice_key, $dismissed_notices)) {
+            return;
+        }
+        
         // If no license, show notice to get free plan
         if (!$has_license) {
             ?>
-            <div class="notice notice-info">
+            <div class="notice notice-info cranseo-notice is-dismissible" data-notice-key="no_license">
                 <p><?php 
                     printf(
                         __('<strong>CranSEO:</strong> Generate AI product descriptions! <a href="%s" target="_blank">Get your free Basic plan</a> with 3 credits to get started.', 'cranseo'),
@@ -229,13 +271,14 @@ class CranSEO {
                 ?></p>
             </div>
             <?php
+            $this->enqueue_notice_dismissal_script();
             return;
         }
 
         // Show quota warnings for licensed users
         if ($remaining_quota <= 0) {
             ?>
-            <div class="notice notice-error">
+            <div class="notice notice-error cranseo-notice is-dismissible" data-notice-key="no_credits">
                 <p><?php 
                     printf(
                         __('<strong>CranSEO:</strong> You have used all your available credits. <a href="%s" target="_blank">Upgrade your plan</a> to generate more AI content.', 'cranseo'),
@@ -246,7 +289,7 @@ class CranSEO {
             <?php
         } elseif ($remaining_quota <= 1 && $user_tier === 'basic') {
             ?>
-            <div class="notice notice-warning">
+            <div class="notice notice-warning cranseo-notice is-dismissible" data-notice-key="low_credits">
                 <p><?php 
                     printf(
                         __('<strong>CranSEO:</strong> You have only %d credit remaining. <a href="%s" target="_blank">Upgrade to Pro</a> for 150 credits.', 'cranseo'),
@@ -257,6 +300,33 @@ class CranSEO {
             </div>
             <?php
         }
+
+        // Enqueue the dismissal script if any notice is shown
+        if ($current_notice_key) {
+            $this->enqueue_notice_dismissal_script();
+        }
+    }
+
+    /**
+     * Enqueue notice dismissal script
+     */
+    private function enqueue_notice_dismissal_script() {
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            $(document).on('click', '.cranseo-notice .notice-dismiss', function() {
+                var notice = $(this).closest('.cranseo-notice');
+                var noticeKey = notice.data('notice-key');
+                
+                $.post(ajaxurl, {
+                    action: 'cranseo_dismiss_notice',
+                    notice_key: noticeKey,
+                    nonce: '<?php echo wp_create_nonce('cranseo_dismiss_notice'); ?>'
+                });
+            });
+        });
+        </script>
+        <?php
     }
 
     /**
