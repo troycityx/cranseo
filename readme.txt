@@ -167,6 +167,9 @@ CranSEO connects to an external service provided by CranSEO (https://freemius.co
 - **Privacy Policy**: https://cranseo.com/privacy-policy/
 
 ==  Changelog ==
+==2.0.2==
+We have set the basic plan so that the user can now get 3 free ai generations on top of their product's analysis
+The premium version has been set so that the user can only pay once under the Pro and the Agency plans
 ==2.0.1==
 Updated the handling of user licenses.
 Introduced one-time payment as opposed to subscription model
