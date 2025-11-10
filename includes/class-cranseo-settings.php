@@ -1,9 +1,11 @@
 <?php
 class CranSEO_Settings {
     private $api_url;
+    private $sitemap;
     
     public function __construct() {
         $this->api_url = CRANSEO_API_URL;
+        $this->sitemap = new CranSEO_Sitemap(); // Initialize sitemap class
         
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'settings_init'));
@@ -115,12 +117,34 @@ class CranSEO_Settings {
                 background: #e7f3ff;
                 border-color: #0073aa;
             }
+
+            .cranseo-sitemap-links {
+                margin-top: 10px;
+                padding: 10px;
+                background: var(--light-bg);
+                border-radius: 4px;
+            }
+            
+            .cranseo-sitemap-links h4 {
+                margin: 0 0 8px 0;
+                font-size: 14px;
+            }
+            
+            .cranseo-sitemap-links ul {
+                margin: 0;
+                padding-left: 20px;
+            }
+            
+            .cranseo-sitemap-links li {
+                margin-bottom: 4px;
+            }
         ";
         wp_add_inline_style('cranseo-settings', $custom_css);
     }
 
     public function settings_init() {
         register_setting('cranseo_settings', 'cranseo_sitemap_post_types');
+        register_setting('cranseo_settings', 'cranseo_sitemap_taxonomies');
         register_setting('cranseo_settings', 'cranseo_saas_license_key');
 
         // SaaS License Section
@@ -151,6 +175,14 @@ class CranSEO_Settings {
             'cranseo_sitemap_post_types',
             __('Include Post Types', 'cranseo'),
             array($this, 'sitemap_post_types_field'),
+            'cranseo_settings',
+            'cranseo_sitemap_section'
+        );
+
+        add_settings_field(
+            'cranseo_sitemap_taxonomies',
+            __('Include Taxonomies', 'cranseo'),
+            array($this, 'sitemap_taxonomies_field'),
             'cranseo_settings',
             'cranseo_sitemap_section'
         );
@@ -235,6 +267,24 @@ class CranSEO_Settings {
             echo '</label>';
         }
         echo '</div>';
+    }
+
+    public function sitemap_taxonomies_field() {
+        $selected = get_option('cranseo_sitemap_taxonomies', array('category', 'post_tag'));
+        $taxonomies = get_taxonomies(array('public' => true), 'objects');
+        
+        echo '<div class="cranseo-checkbox-grid">';
+        foreach ($taxonomies as $taxonomy) {
+            if ($taxonomy->name === 'post_format') continue;
+            
+            $checked = in_array($taxonomy->name, $selected) ? 'checked="checked"' : '';
+            echo '<label class="cranseo-checkbox-item">';
+            echo '<input type="checkbox" name="cranseo_sitemap_taxonomies[]" value="' . $taxonomy->name . '" ' . $checked . '>';
+            echo '<span class="cranseo-checkbox-label">' . $taxonomy->label . '</span>';
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '<p class="description">' . __('Include taxonomy archives (categories, tags, etc.) in your sitemap.', 'cranseo') . '</p>';
     }
 
     private function get_license_key_status($license_key) {
@@ -387,8 +437,8 @@ class CranSEO_Settings {
             wp_send_json_error(__('Unauthorized', 'cranseo'));
         }
         
-        $sitemap = new CranSEO_Sitemap();
-        $success = $sitemap->regenerate_sitemap();
+        // Use the sitemap instance we created in constructor
+        $success = $this->sitemap->regenerate_all_sitemaps();
         
         if ($success) {
             wp_send_json_success(__('Sitemap regenerated successfully!', 'cranseo'));
@@ -466,8 +516,12 @@ class CranSEO_Settings {
     }
 
     public function settings_page() {
-        $sitemap_url = home_url('/sitemap-cranseo.xml');
-        $sitemap_exists = file_exists(ABSPATH . 'sitemap-cranseo.xml');
+        // Use the new multi-sitemap system
+        $sitemap_url = $this->sitemap->get_sitemap_url();
+        $sitemap_index_file = ABSPATH . 'cranseo-sitemaps/sitemap-index.xml';
+        $sitemap_exists = file_exists($sitemap_index_file);
+        $sitemap_files = $this->get_available_sitemaps();
+        
         $quota_info = $this->get_quota_info();
         $remaining_quota = $quota_info['remaining'];
         $tier = $quota_info['tier'];
@@ -524,7 +578,7 @@ class CranSEO_Settings {
                             
                             <div class="cranseo-action-buttons">
                                 <a href="<?php echo $sitemap_url; ?>" target="_blank" class="button button-secondary">
-                                    <?php _e('View Sitemap', 'cranseo'); ?>
+                                    <?php _e('View Sitemap Index', 'cranseo'); ?>
                                 </a>
                                 <button type="button" class="button button-primary" id="cranseo-regenerate-sitemap">
                                     <?php _e('Regenerate', 'cranseo'); ?>
@@ -533,9 +587,24 @@ class CranSEO_Settings {
                             
                             <div class="cranseo-sitemap-info">
                                 <p><strong><?php _e('Last Updated:', 'cranseo'); ?></strong> 
-                                <?php echo $sitemap_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime(ABSPATH . 'sitemap-cranseo.xml')) : __('Never', 'cranseo'); ?>
+                                <?php echo $sitemap_exists ? date_i18n(get_option('date_format') . ' ' . get_option('time_format'), filemtime($sitemap_index_file)) : __('Never', 'cranseo'); ?>
                                 </p>
                             </div>
+
+                            <?php if (!empty($sitemap_files)): ?>
+                            <div class="cranseo-sitemap-links">
+                                <h4><?php _e('Individual Sitemaps:', 'cranseo'); ?></h4>
+                                <ul>
+                                    <?php foreach ($sitemap_files as $sitemap_file): ?>
+                                    <li>
+                                        <a href="<?php echo home_url('/cranseo-sitemaps/' . $sitemap_file); ?>" target="_blank">
+                                            <?php echo $sitemap_file; ?>
+                                        </a>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -733,14 +802,47 @@ class CranSEO_Settings {
     }
 
     private function count_sitemap_urls() {
-        $sitemap_file = ABSPATH . 'sitemap-cranseo.xml';
-        if (!file_exists($sitemap_file)) {
+        $sitemap_dir = ABSPATH . 'cranseo-sitemaps/';
+        if (!file_exists($sitemap_dir)) {
             return 0;
         }
         
-        $content = file_get_contents($sitemap_file);
-        preg_match_all('/<url>/', $content, $matches);
-        return count($matches[0]);
+        // Count URLs from all individual sitemaps
+        $total_urls = 0;
+        $files = glob($sitemap_dir . 'sitemap-*.xml');
+        
+        foreach ($files as $file) {
+            // Skip the index file
+            if (strpos($file, 'sitemap-index.xml') !== false) {
+                continue;
+            }
+            
+            $content = file_get_contents($file);
+            preg_match_all('/<url>/', $content, $matches);
+            $total_urls += count($matches[0]);
+        }
+        
+        return $total_urls;
+    }
+
+    private function get_available_sitemaps() {
+        $sitemap_dir = ABSPATH . 'cranseo-sitemaps/';
+        if (!file_exists($sitemap_dir)) {
+            return array();
+        }
+        
+        $files = glob($sitemap_dir . 'sitemap-*.xml');
+        $sitemap_files = array();
+        
+        foreach ($files as $file) {
+            $filename = basename($file);
+            // Skip the index file for the individual links list
+            if ($filename !== 'sitemap-index.xml') {
+                $sitemap_files[] = $filename;
+            }
+        }
+        
+        return $sitemap_files;
     }
 
     private function count_total_products() {
